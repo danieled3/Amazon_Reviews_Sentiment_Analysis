@@ -2,6 +2,8 @@
 data/*.csv
 .idea/*
 
+# Model
+*.h5
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

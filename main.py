@@ -1,10 +1,11 @@
 import numpy as np
+import tensorflow as tf
+import tensorflow.keras.backend as K
+import matplotlib.pyplot as plt
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
-import tensorflow as tf
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-import tensorflow.keras.backend as K
 import csv
 import os
 import random
@@ -173,3 +174,24 @@ history = model.fit(training_padded,
 
 # EVALUATE PERFORMANCES ON TEST SET
 model.evaluate(test_padded, test_stars_diff)
+
+# PRINT TRAINING-VALIDATION LOSS AND ACCURACY
+acc = history.history['mae']
+val_acc = history.history['val_mae']
+loss = history.history['loss']
+val_loss = history.history['val_loss']
+
+epochs = range(len(acc))
+
+plt.plot(epochs, acc, 'r', label='Training MAE')
+plt.plot(epochs, val_acc, 'b', label='Validation MAE')
+plt.title('Training and validation MAE')
+
+plt.figure()
+
+plt.plot(epochs, loss, 'r', label='Training Loss')
+plt.plot(epochs, val_loss, 'b', label='Validation Loss')
+plt.title('Training and validation loss')
+plt.legend()
+
+plt.show()
