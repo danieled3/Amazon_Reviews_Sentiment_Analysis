@@ -108,7 +108,7 @@ model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accur
 model.summary()
 
 # TRAIN MODEL (CLASSIFICATION LSTM)
-model.fit(training_padded,
+history = model.fit(training_padded,
           tf.keras.utils.to_categorical(training_stars_diff),
           epochs=50,
           validation_data=(validation_padded, tf.keras.utils.to_categorical(validation_stars_diff))
@@ -140,7 +140,7 @@ model.compile(loss=tf.keras.losses.Huber(),
 model.summary()
 
 # TRAIN MODEL (REGRESSION LSTM)
-model.fit(training_padded,
+history = model.fit(training_padded,
           training_stars_diff,
           epochs=50,
           validation_data=(validation_padded, validation_stars_diff),
@@ -164,7 +164,7 @@ model.compile(loss=tf.keras.losses.Huber(),
 model.summary()
 
 # TRAIN MODEL (REGRESSION CONV)
-model.fit(training_padded,
+history = model.fit(training_padded,
           training_stars_diff,
           epochs=50,
           validation_data=(validation_padded, validation_stars_diff),
@@ -172,3 +172,4 @@ model.fit(training_padded,
           )
 
 # EVALUATE PERFORMANCES ON TEST SET
+model.evaluate(test_padded, test_stars_diff)
