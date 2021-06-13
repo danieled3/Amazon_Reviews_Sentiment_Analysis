@@ -20,10 +20,54 @@ pad_type = 'post'
 trunc_type = 'post'
 oov_tok = 'OOV' # token to use for rare words out of dictionary
 
+# FUNCTION
+"""Load Amazon review data, remove stopwords and punctuation, tokenize sentences 
+and return text, title and stars of each review
+
+Arguments:
+    file_path(string): path of the csv file to load
+    title_index(int): index of column with titles
+    review_index(int): index of columns with reviews
+    star_index(int): index of column with number of stars
+
+Return:
+    titles: list of tokenize titles of Amazon reviews
+    reviews: list of tokenize full text of Amazon reviews
+    stars: list of number of stars of Amazon reviews"""
+
+def load_amazon_data(file_path, title_index, review_index, star_index):
+    reviews = []
+    titles = []
+    stars = []
+    stopwords_list = stopwords.words('english')
+    with open(file_path, 'r', encoding="utf8") as csvfile:
+        datastore = csv.reader(csvfile, delimiter=',')
+        next(datastore)  # skip header
+        for row in datastore:
+            review_tokens = word_tokenize(row[review_index]) #tokenize sentence
+            review_filtered = [w for w in review_tokens if w not in stopwords_list and w not in string.punctuation]
+            reviews.append(review_filtered)
+            title_tokens = word_tokenize(row[title_index]) # tokenize title
+            title_filtered = [w for w in title_tokens if w not in stopwords_list and w not in string.punctuation]
+            titles.append(title_filtered)
+            stars.append(row[star_index])
+    return (titles, reviews, stars)
+
+# SET DATA PATH
 CURRENT_PATH = os.getcwd()
 DATA_PATH = os.path.join(CURRENT_PATH, 'data')
 
-# LOAD DATA FROM CSV
+# LOAD TRAIN DATA FROM CSV
+titles, stars = load_amazon_data(os.path.join(DATA_PATH, 'train.csv'),
+                                 title_index=1,
+                                 review_index=2,
+                                 star_index=0)[0,2]
+# LOAD TEST DATA FROM CSV
+test_titles, test_stars = load_amazon_data(os.path.join(DATA_PATH, 'test.csv'),
+                                 title_index=1,
+                                 review_index=2,
+                                 star_index=0)[0,2]
+
 # reviews = []
 titles = []
 stars = []
@@ -121,7 +165,7 @@ history = model.fit(training_padded,
 def ordinal_accuracy(y_true, y_pred):
     return K.cast(K.equal(y_true,
                           K.round(y_pred)),
-                  K.floatx())
+                          K.floatx())
 
 
 # CREATE LSTM MODEL (REGRESSION LSTM)
