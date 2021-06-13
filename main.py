@@ -13,12 +13,12 @@ import string
 
 # SET PARAMETERS
 data_split = 0.1  # percentage of validation
-vocab_size = 100000
-embedding_dim = 16
-max_length = 10  # long titles are not common
+vocab_size = 100000  # max vocab size to use
+embedding_dim = 16 # embedding dimension for each word
+max_length = 10  # number of words to consider for each title
 pad_type = 'post'
 trunc_type = 'post'
-oov_tok = 'OOV'
+oov_tok = 'OOV' # token to use for rare words out of dictionary
 
 CURRENT_PATH = os.getcwd()
 DATA_PATH = os.path.join(CURRENT_PATH, 'data')
