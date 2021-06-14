@@ -1,26 +1,27 @@
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as K
-import matplotlib.pyplot as plt
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
+from sklearn.metrics import confusion_matrix
 import csv
 import os
 import random
 import string
+import my_utils
 
 # SET PARAMETERS
 data_split = 0.1  # percentage of validation
 vocab_size = 100000  # max vocab size to use
-embedding_dim = 16  # embedding dimension for each word
-max_length = 10  # number of words to consider for each title
+embedding_dim = 64  # embedding dimension for each word
+max_length = 20  # number of words to consider for each title
 pad_type = 'post'
 trunc_type = 'post'
 oov_tok = 'OOV'  # token to use for rare words out of dictionary
-rows_for_training = 100000 # load less data to speed up loading and model training for hyperparameters tuning
-rows_for_test = 20000 # load less data to speed up loading
+rows_for_training = 50000 # load less data to speed up loading and model training for hyperparameters tuning
+rows_for_test = 5000 # load less data to speed up loading
 
 # FUNCTION TO LOAD DATA
 """Load Amazon review data, remove stopwords and punctuation, tokenize sentences 
@@ -107,7 +108,7 @@ training_padded = np.array(training_padded)
 validation_padded = np.array(validation_padded)
 test_padded = np.array(test_padded)
 
-# TRANSFORM LABELS INTO VECTOR (i.e. 1->[1,0,0,0,0] etc.)
+# TRANSFORM LABELS IN POSITION INDEX (i.e. subtract 1)
 training_stars_diff = [int(x) - 1 for x in training_stars]
 validation_stars_diff = [int(x) - 1 for x in validation_stars]
 test_stars_diff = [int(x) - 1 for x in test_stars]
@@ -116,18 +117,19 @@ validation_stars_diff = np.array(validation_stars_diff)
 test_stars_diff = np.array(test_stars_diff)
 
 # EARLY STOPPING CALLBACK
-early_stopping_cb = tf.keras.callbacks.EarlyStopping(patience=10, restore_best_weights=True)
+early_stopping_cb = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
 
 # CHECKPOINT CALLBACK (CLASSIFICATION LSTM)
-checkpoint_class_lstm_cb = tf.keras.callbacks.ModelCheckpoint(os.path.join(CURRENT_PATH, 'model_class_lstm.h5'),
+checkpoint_class_lstm_cb = tf.keras.callbacks.ModelCheckpoint(os.path.join(CURRENT_PATH, 'models/model_class_lstm.h5'),
                                                    save_best_only=True)
 
 # CREATE LSTM MODEL (CLASSIFICATION LSTM)
 model_class_lstm = tf.keras.Sequential([
     tf.keras.layers.Embedding(vocab_size, embedding_dim),
     tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
-    # tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(16)),  # add return_sequences=True in the previous layer
+    # tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(16)),  # to add return_sequences=True in the previous layer
     tf.keras.layers.Dense(64, activation='relu'),
+    tf.keras.layers.Dropout(0.3),
     tf.keras.layers.Dense(5, activation='softmax')
 ])
 
@@ -137,7 +139,7 @@ model_class_lstm.summary()
 # TRAIN MODEL (CLASSIFICATION LSTM)
 history = model_class_lstm.fit(training_padded,
                     tf.keras.utils.to_categorical(training_stars_diff),
-                    epochs=50,
+                    epochs=100,
                     validation_data=(validation_padded, tf.keras.utils.to_categorical(validation_stars_diff)),
                     callbacks=[checkpoint_class_lstm_cb, early_stopping_cb]
                     )
@@ -151,14 +153,15 @@ def ordinal_accuracy(y_true, y_pred):
                   K.floatx())
 
 # CHECKPOINT CALLBACK (REGRESSION LSTM)
-checkpoint_reg_lstm_cb = tf.keras.callbacks.ModelCheckpoint(os.path.join(CURRENT_PATH, 'model_reg_lstm.h5'),
+checkpoint_reg_lstm_cb = tf.keras.callbacks.ModelCheckpoint(os.path.join(CURRENT_PATH, 'models/model_reg_lstm.h5'),
                                                    save_best_only=True)
 # CREATE LSTM MODEL (REGRESSION LSTM)
 model_reg_lstm = tf.keras.Sequential([
     tf.keras.layers.Embedding(vocab_size, embedding_dim),
     tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
     # tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(16)),  # add return_sequences=True in the previous layer
-    tf.keras.layers.Dense(32, activation='relu'),
+    tf.keras.layers.Dense(64, activation='relu'),
+    tf.keras.layers.Dropout(0.3),
     tf.keras.layers.Dense(1, activation='sigmoid'),
     tf.keras.layers.Lambda(lambda x: (x * 5.0) - 0.5)  # in the accuracy built-in metrics round(y_pred)=y_real
 ])
@@ -178,15 +181,16 @@ history = model_reg_lstm.fit(training_padded,
                     )
 
 # CHECKPOINT CALLBACK (CLASSIFICATION LSTM)
-checkpoint_reg_conv_cb = tf.keras.callbacks.ModelCheckpoint(os.path.join(CURRENT_PATH, 'model_reg_conv.h5'),
+checkpoint_reg_conv_cb = tf.keras.callbacks.ModelCheckpoint(os.path.join(CURRENT_PATH, 'models/model_reg_conv.h5'),
                                                    save_best_only=True)
 
 # CREATE LSTM MODEL (REGRESSION CONV)
 model_reg_conv = tf.keras.Sequential([
     tf.keras.layers.Embedding(vocab_size, embedding_dim),
-    tf.keras.layers.Conv1D(64, 5, activation='relu'),
+    tf.keras.layers.Conv1D(32, 5, activation='relu'),
     tf.keras.layers.GlobalMaxPooling1D(),
-    tf.keras.layers.Dense(32, activation='relu'),
+    tf.keras.layers.Dense(64, activation='relu'),
+    tf.keras.layers.Dropout(0.3),
     tf.keras.layers.Dense(1, activation='sigmoid'),
     tf.keras.layers.Lambda(lambda x: (x * 5.0) - 0.5)  # in the accuracy built-in metrics round(y_pred)=y_real
 ])
@@ -206,28 +210,34 @@ history = model_reg_conv.fit(training_padded,
                     )
 
 
+# COMPUTE CONFUSION MATRIXES
+cm_class_lstm = confusion_matrix(test_stars_diff,
+                                 np.argmax(model_class_lstm.predict(test_padded),axis=1)
+                                 )
+cm_reg_lstm = confusion_matrix(test_stars_diff,
+                                 model_reg_lstm.predict(test_padded).reshape(rows_for_test).astype('int32')
+                                 )
+cm_reg_conv = confusion_matrix(test_stars_diff,
+                                 model_reg_conv.predict(test_padded).reshape(rows_for_test).astype('int32')
+                                 )
 
+# PRINT CONFUSION MATRIXES
+my_utils.make_confusion_matrix(cm_class_lstm,
+                               figsize=(8,6),
+                               cbar=False,
+                               title='Classification Model LSTM',
+                               percent=False,
+                               cmap='Blues')
+my_utils.make_confusion_matrix(cm_reg_lstm,
+                               figsize=(8,6),
+                               cbar=False,
+                               title='Regression Model LSTM',
+                               percent=False,
+                               cmap='Reds')
+my_utils.make_confusion_matrix(cm_reg_conv,
+                               figsize=(8,6),
+                               cbar=False,
+                               title='Regression Model with 1D Convolution',
+                               percent=False,
+                               cmap='Greens')
 
-# EVALUATE PERFORMANCES ON TEST SET
-model.evaluate(test_padded, test_stars_diff)
-
-# PRINT TRAINING-VALIDATION LOSS AND ACCURACY
-acc = history.history['mae']
-val_acc = history.history['val_mae']
-loss = history.history['loss']
-val_loss = history.history['val_loss']
-
-epochs = range(len(acc))
-
-plt.plot(epochs, acc, 'r', label='Training MAE')
-plt.plot(epochs, val_acc, 'b', label='Validation MAE')
-plt.title('Training and validation MAE')
-
-plt.figure()
-
-plt.plot(epochs, loss, 'r', label='Training Loss')
-plt.plot(epochs, val_loss, 'b', label='Validation Loss')
-plt.title('Training and validation loss')
-plt.legend()
-
-plt.show()
