@@ -3,8 +3,8 @@
 ## Table of Content
   * [Overview](#overview)
   * [Motivation](#motivation)
-  * [Technical Aspect](#technical-aspects)
-  * [Result](#result)
+  * [Technical Aspects](#technical-aspects)
+  * [Results](#result)
   * [Technologies](#technologies)
   * [To Do](#to-do)
   * [File List](#file-list)
