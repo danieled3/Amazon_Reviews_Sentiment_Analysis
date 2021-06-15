@@ -114,10 +114,10 @@ def make_confusion_matrix(cf,
             precision = cf[1, 1] / sum(cf[:, 1])
             recall = cf[1, 1] / sum(cf[1, :])
             f1_score = 2 * precision * recall / (precision + recall)
-            stats_text = "\nXAccuracy={:0.3f}\nPrecision={:0.3f}\nRecall={:0.3f}\nF1 Score={:0.3f}".format(
+            stats_text = "\nAccuracy={:0.3f}\nPrecision={:0.3f}\nRecall={:0.3f}\nF1 Score={:0.3f}".format(
                 accuracy, precision, recall, f1_score) + "\n" + other_labels
         else:
-            stats_text = "\nXAccuracy={:0.3f}".format(accuracy) + "\n" + other_labels
+            stats_text = "\nAccuracy={:0.3f}".format(accuracy) + "\n" + other_labels
     else:
         stats_text = ""
 
