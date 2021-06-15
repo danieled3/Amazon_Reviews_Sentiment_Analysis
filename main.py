@@ -1,15 +1,22 @@
+''' Load shuffled and balanced dataset with title, full reviews and stars evaluation of Amazon products.
+Then train and save
+- a classification model with a LSTM layer
+- a regression model with a LSTM layer
+- a regression model with 1D Convolutional layer
+to predict stars evaluation from review title.
+
+In the end it evaluates performances of models by considering confusion matrixes.
+Then compare them with the performance of human classifiers.
+The classifications made by humans were produced by AWS Ground Truth'''
+
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as K
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-from sklearn.metrics import confusion_matrix
-import csv
+from sklearn.metrics import confusion_matrix, mean_absolute_error
 import os
 import random
-import string
 import my_utils
 
 # SET PARAMETERS
@@ -20,65 +27,33 @@ max_length = 20  # number of words to consider for each title
 pad_type = 'post'
 trunc_type = 'post'
 oov_tok = 'OOV'  # token to use for rare words out of dictionary
-rows_for_training = 50000 # load less data to speed up loading and model training for hyperparameters tuning
-rows_for_test = 5000 # load less data to speed up loading
-
-# FUNCTION TO LOAD DATA
-"""Load Amazon review data, remove stopwords and punctuation, tokenize sentences 
-and return text, title and stars of each review
-
-Arguments:
-    file_path(string): path of the csv file to load
-    title_index(int): index of column with titles
-    review_index(int): index of columns with reviews
-    star_index(int): index of column with number of stars
-    limit_rows: maximum number of rows to load
-
-Return:
-    titles: list of tokenize titles of Amazon reviews
-    reviews: list of tokenize full text of Amazon reviews
-    stars: list of number of stars of Amazon reviews"""
-
-
-def load_amazon_data(file_path, title_index, review_index, star_index, limit_rows=None):
-    reviews = []
-    titles = []
-    stars = []
-    stopwords_list = stopwords.words('english')
-    counter = 1
-    with open(file_path, 'r', encoding="utf8") as csvfile:
-        datastore = csv.reader(csvfile, delimiter=',')
-        next(datastore)  # skip header
-        for row in datastore:
-            review_tokens = word_tokenize(row[review_index])  # tokenize sentence
-            review_filtered = [w for w in review_tokens if w not in stopwords_list and w not in string.punctuation]
-            reviews.append(review_filtered)
-            title_tokens = word_tokenize(row[title_index])  # tokenize title
-            title_filtered = [w for w in title_tokens if w not in stopwords_list and w not in string.punctuation]
-            titles.append(title_filtered)
-            stars.append(row[star_index])
-            if (limit_rows!=None and counter>=limit_rows) : #lazy evaluation
-                break
-            counter += 1
-    return (titles, reviews, stars)
-
+rows_for_training = 50000  # load less data to speed up loading and model training for hyperparameters tuning
+rows_for_test = 5000  # load less data to speed up loading
 
 # SET DATA PATH
 CURRENT_PATH = os.getcwd()
 DATA_PATH = os.path.join(CURRENT_PATH, 'data')
 
 # LOAD TRAIN DATA FROM CSV
-titles, reviews, stars = load_amazon_data(os.path.join(DATA_PATH, 'train.csv'),
-                                 title_index=1,
-                                 review_index=2,
-                                 star_index=0,
-                                 limit_rows=rows_for_training)
+titles, reviews, stars = my_utils.load_amazon_data(os.path.join(DATA_PATH, 'train.csv'),
+                                                   title_index=1,
+                                                   review_index=2,
+                                                   star_index=0,
+                                                   limit_rows=rows_for_training)
 # LOAD TEST DATA FROM CSV
-test_titles, test_reviews, test_stars = load_amazon_data(os.path.join(DATA_PATH, 'test.csv'),
-                                           title_index=1,
-                                           review_index=2,
-                                           star_index=0,
-                                           limit_rows=rows_for_test)
+test_titles, test_reviews, test_stars = my_utils.load_amazon_data(os.path.join(DATA_PATH, 'test.csv'),
+                                                                  title_index=1,
+                                                                  review_index=2,
+                                                                  star_index=0,
+                                                                  limit_rows=rows_for_test)
+
+# LOAD HUMAN CLASSIFIED DATA (first 100 rows of test set)
+human_stars = []
+
+with open('data/test_100_human_classification.txt', 'r') as f:
+    for line in f.readlines():
+        human_stars = human_stars + [int(line[0])]
+human_stars = np.array(human_stars)
 
 # TRAINING AND VALIDATION SPLIT
 random.seed(33)
@@ -121,7 +96,7 @@ early_stopping_cb = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patienc
 
 # CHECKPOINT CALLBACK (CLASSIFICATION LSTM)
 checkpoint_class_lstm_cb = tf.keras.callbacks.ModelCheckpoint(os.path.join(CURRENT_PATH, 'models/model_class_lstm.h5'),
-                                                   save_best_only=True)
+                                                              save_best_only=True)
 
 # CREATE LSTM MODEL (CLASSIFICATION LSTM)
 model_class_lstm = tf.keras.Sequential([
@@ -137,24 +112,28 @@ model_class_lstm.compile(loss='categorical_crossentropy', optimizer='adam', metr
 model_class_lstm.summary()
 
 # TRAIN MODEL (CLASSIFICATION LSTM)
-history = model_class_lstm.fit(training_padded,
-                    tf.keras.utils.to_categorical(training_stars_diff),
-                    epochs=100,
-                    validation_data=(validation_padded, tf.keras.utils.to_categorical(validation_stars_diff)),
-                    callbacks=[checkpoint_class_lstm_cb, early_stopping_cb]
-                    )
+model_class_lstm.fit(training_padded,
+                     tf.keras.utils.to_categorical(training_stars_diff),
+                     epochs=50,
+                     validation_data=(
+                         validation_padded, tf.keras.utils.to_categorical(validation_stars_diff)),
+                     callbacks=[checkpoint_class_lstm_cb, early_stopping_cb]
+                     )
 
 
 # CREATE CUSTOM METRICS
 # Round the output of model and show the percentage of correct predictions
 def ordinal_accuracy(y_true, y_pred):
     return K.cast(K.equal(y_true,
-                          K.round(y_pred)),
-                  K.floatx())
+                          K.round(y_pred)
+                          ),
+                  K.floatx()
+                  )
+
 
 # CHECKPOINT CALLBACK (REGRESSION LSTM)
 checkpoint_reg_lstm_cb = tf.keras.callbacks.ModelCheckpoint(os.path.join(CURRENT_PATH, 'models/model_reg_lstm.h5'),
-                                                   save_best_only=True)
+                                                            save_best_only=True)
 # CREATE LSTM MODEL (REGRESSION LSTM)
 model_reg_lstm = tf.keras.Sequential([
     tf.keras.layers.Embedding(vocab_size, embedding_dim),
@@ -167,22 +146,22 @@ model_reg_lstm = tf.keras.Sequential([
 ])
 
 model_reg_lstm.compile(loss=tf.keras.losses.Huber(),
-              optimizer=tf.keras.optimizers.SGD(lr=1e-2, momentum=0.9),  # lr<1e-1 to converge
-              metrics=[ordinal_accuracy, 'mae']  # use custom metric
-              )
+                       optimizer=tf.keras.optimizers.SGD(lr=1e-2, momentum=0.9),  # lr<1e-1 to converge
+                       metrics=[ordinal_accuracy, 'mae']  # use custom metric
+                       )
 model_reg_lstm.summary()
 
 # TRAIN MODEL (REGRESSION LSTM)
-history = model_reg_lstm.fit(training_padded,
-                    training_stars_diff,
-                    epochs=50,
-                    validation_data=(validation_padded, validation_stars_diff),
-                    callbacks=[checkpoint_reg_lstm_cb, early_stopping_cb]
-                    )
+model_reg_lstm.fit(training_padded,
+                   training_stars_diff,
+                   epochs=50,
+                   validation_data=(validation_padded, validation_stars_diff),
+                   callbacks=[checkpoint_reg_lstm_cb, early_stopping_cb]
+                   )
 
 # CHECKPOINT CALLBACK (CLASSIFICATION LSTM)
 checkpoint_reg_conv_cb = tf.keras.callbacks.ModelCheckpoint(os.path.join(CURRENT_PATH, 'models/model_reg_conv.h5'),
-                                                   save_best_only=True)
+                                                            save_best_only=True)
 
 # CREATE LSTM MODEL (REGRESSION CONV)
 model_reg_conv = tf.keras.Sequential([
@@ -196,48 +175,72 @@ model_reg_conv = tf.keras.Sequential([
 ])
 
 model_reg_conv.compile(loss=tf.keras.losses.Huber(),
-              optimizer=tf.keras.optimizers.SGD(lr=1e-2, momentum=0.9),  # lr<1e-1 to converge
-              metrics=[ordinal_accuracy, 'mae']  # use custom metric
-              )
+                       optimizer=tf.keras.optimizers.SGD(lr=1e-2, momentum=0.9),  # lr<1e-1 to converge
+                       metrics=[ordinal_accuracy, 'mae']  # use custom metric
+                       )
 model_reg_conv.summary()
 
 # TRAIN MODEL (REGRESSION CONV)
-history = model_reg_conv.fit(training_padded,
-                    training_stars_diff,
-                    epochs=50,
-                    validation_data=(validation_padded, validation_stars_diff),
-                    callbacks=[checkpoint_reg_conv_cb, early_stopping_cb]
-                    )
-
+model_reg_conv.fit(training_padded,
+                   training_stars_diff,
+                   epochs=50,
+                   validation_data=(validation_padded, validation_stars_diff),
+                   callbacks=[checkpoint_reg_conv_cb, early_stopping_cb]
+                   )
 
 # COMPUTE CONFUSION MATRIXES
 cm_class_lstm = confusion_matrix(test_stars_diff,
-                                 np.argmax(model_class_lstm.predict(test_padded),axis=1)
+                                 np.argmax(model_class_lstm.predict(test_padded), axis=1)
                                  )
 cm_reg_lstm = confusion_matrix(test_stars_diff,
-                                 model_reg_lstm.predict(test_padded).reshape(rows_for_test).astype('int32')
-                                 )
+                               np.round(model_reg_lstm.predict(test_padded)).reshape(rows_for_test).astype('int32')
+                               )
 cm_reg_conv = confusion_matrix(test_stars_diff,
-                                 model_reg_conv.predict(test_padded).reshape(rows_for_test).astype('int32')
-                                 )
+                               np.round(model_reg_conv.predict(test_padded)).reshape(rows_for_test).astype('int32')
+                               )
+cm_hum = confusion_matrix(test_stars_diff[:100],
+                          human_stars,
+                          )
 
+# COMPUTE MAE
+mae_class_lstm = mean_absolute_error(test_stars_diff,
+                                     np.argmax(model_class_lstm.predict(test_padded), axis=1)
+                                     )
+mae_reg_lstm = mean_absolute_error(test_stars_diff,
+                                   np.round(model_reg_lstm.predict(test_padded)).reshape(rows_for_test).astype('int32')
+                                   )
+mae_reg_conv = mean_absolute_error(test_stars_diff,
+                                   np.round(model_reg_conv.predict(test_padded)).reshape(rows_for_test).astype('int32')
+                                   )
+mae_hum = mean_absolute_error(test_stars_diff[:100],
+                              human_stars,
+                              )
 # PRINT CONFUSION MATRIXES
 my_utils.make_confusion_matrix(cm_class_lstm,
-                               figsize=(8,6),
+                               figsize=(5, 5),
                                cbar=False,
                                title='Classification Model LSTM',
                                percent=False,
-                               cmap='Blues')
+                               cmap='Blues',
+                               other_labels="Mean Absolute Error={:0.3f}".format(mae_class_lstm))
 my_utils.make_confusion_matrix(cm_reg_lstm,
-                               figsize=(8,6),
+                               figsize=(5, 5),
                                cbar=False,
                                title='Regression Model LSTM',
                                percent=False,
-                               cmap='Reds')
+                               cmap='Reds',
+                               other_labels="Mean Absolute Error={:0.3f}".format(mae_reg_lstm))
 my_utils.make_confusion_matrix(cm_reg_conv,
-                               figsize=(8,6),
+                               figsize=(5, 5),
                                cbar=False,
                                title='Regression Model with 1D Convolution',
                                percent=False,
-                               cmap='Greens')
-
+                               cmap='Oranges',
+                               other_labels="Mean Absolute Error={:0.3f}".format(mae_reg_conv))
+my_utils.make_confusion_matrix(cm_hum,
+                               figsize=(5, 5),
+                               cbar=False,
+                               title='Human Classification',
+                               percent=False,
+                               cmap='Greens',
+                               other_labels="Mean Absolute Error={:0.3f}".format(mae_reg_conv))

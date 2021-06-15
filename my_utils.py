@@ -1,8 +1,52 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+import csv
+import string
+
+"""Load Amazon review data, remove stopwords and punctuation, tokenize sentences 
+and return text, title and stars of each review
+
+Arguments:
+    file_path(string): path of the csv file to load
+    title_index(int): index of column with titles
+    review_index(int): index of columns with reviews
+    star_index(int): index of column with number of stars
+    limit_rows: maximum number of rows to load
+
+Return:
+    titles: list of tokenize titles of Amazon reviews
+    reviews: list of tokenize full text of Amazon reviews
+    stars: list of number of stars of Amazon reviews"""
+
+
+def load_amazon_data(file_path, title_index, review_index, star_index, limit_rows=None):
+    reviews = []
+    titles = []
+    stars = []
+    stopwords_list = stopwords.words('english')
+    counter = 1
+    with open(file_path, 'r', encoding="utf8") as csvfile:
+        datastore = csv.reader(csvfile, delimiter=',')
+        next(datastore)  # skip header
+        for row in datastore:
+            review_tokens = word_tokenize(row[review_index])  # tokenize sentence
+            review_filtered = [w for w in review_tokens if w not in stopwords_list and w not in string.punctuation]
+            reviews.append(review_filtered)
+            title_tokens = word_tokenize(row[title_index])  # tokenize title
+            title_filtered = [w for w in title_tokens if w not in stopwords_list and w not in string.punctuation]
+            titles.append(title_filtered)
+            stars.append(row[star_index])
+            if limit_rows is not None and counter >= limit_rows:  # lazy evaluation
+                break
+            counter += 1
+    return titles, reviews, stars
+
 
 '''
+@author DTrimarchi10 https://github.com/DTrimarchi10/confusion_matrix
 This function will make a pretty plot of an sklearn Confusion Matrix cm using a Seaborn heatmap visualization.
 Arguments
 ---------
@@ -15,6 +59,7 @@ cbar:          If True, show the color bar. The cbar values are based off the va
                Default is True.
 xyticks:       If True, show x and y ticks. Default is True.
 xyplotlabels:  If True, show 'True Label' and 'Predicted Label' on the figure. Default is True.
+other_labels:  String with other labels to add below the chart. Default is Empty string.
 sum_stats:     If True, display summary statistics below the figure. Default is True.
 figsize:       Tuple representing the figure size. Default will be the matplotlib rcParams value.
 cmap:          Colormap of the values displayed from matplotlib.pyplot.cm. Default is 'Blues'
@@ -32,6 +77,7 @@ def make_confusion_matrix(cf,
                           cbar=True,
                           xyticks=True,
                           xyplotlabels=True,
+                          other_labels="",
                           sum_stats=True,
                           figsize=None,
                           cmap='Blues',
@@ -68,10 +114,10 @@ def make_confusion_matrix(cf,
             precision = cf[1, 1] / sum(cf[:, 1])
             recall = cf[1, 1] / sum(cf[1, :])
             f1_score = 2 * precision * recall / (precision + recall)
-            stats_text = "\n\nAccuracy={:0.3f}\nPrecision={:0.3f}\nRecall={:0.3f}\nF1 Score={:0.3f}".format(
-                accuracy, precision, recall, f1_score)
+            stats_text = "\nAccuracy={:0.3f}\nPrecision={:0.3f}\nRecall={:0.3f}\nF1 Score={:0.3f}".format(
+                accuracy, precision, recall, f1_score) + "\n" + other_labels
         else:
-            stats_text = "\n\nAccuracy={:0.3f}".format(accuracy)
+            stats_text = "\nAccuracy={:0.3f}".format(accuracy) + "\n" + other_labels
     else:
         stats_text = ""
 
