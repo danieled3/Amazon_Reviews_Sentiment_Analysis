@@ -13,10 +13,15 @@
 
   
 ## Overview <a name="overview" />
-This is a simple data analysis project where I studied the statistics of the UK population in the period from 1981 to 2017 (https://www.nomisweb.co.uk/api/v01/dataset/NM_31_1.jsonstat.json). I analyzed how the population progressed by regions and age groups and I tried to explain this phenomenon through data. Moreover a simple ppt presentation is provided to summarize the key insights. 
+In this project I loaded and processed titles of Amazon reviews to predict the review scores. I compared the performances of 3 models (Tensorflow): 
+* classification model with a LTSM layer
+* regression model with a LTSM layer 
+* regression model with a 1D convolutional layer
+In the end the classifications made by these 3 models were compared with the classification made by a human being through AWS Sagemaker Ground Truth to understand whether the models were further improvable.
 
 ## Motivation <a name="motivation" />
-I wanted to understand how accurated the classical LSTM models were in a real complex 
+The book [Hands-On Machine Learning with Scikit-Learn, Keras & Tensorflow](https://www.oreilly.com/library/view/hands-on-machine-learning/9781492032632/) written by the author of Keras and most scientific articles recommend using classification models to perform sentiment analysis or score prediction. However, by doing so, we consider each score as a distinct class and lose the information that the class 4 for example is most similar to class 5 than to class 1. In order to preserve this information I wanted to train a regression model and a classification model, with similar complexity, on the same data to see the difference in accuracy and MAE.
+Moreover, I was curious to understand the potential of LTSM layers. In other words I wanted to understand wheter a simple model with few layers was able to reach the same performance of a human being in identification of score ratings.
 
 ## Technical Aspect <a name="technical-aspects" />
 The main issue of this project were:
