@@ -48,7 +48,7 @@ I noticed that:
 3. Both classification and regression models, even if they are very simple, allow to reach the same precision of a human being. It is a prof of the potential of LSTM layers and convolutional layers in neural networks.
 
 ## Technologies <a name="technologies" />
-I used nltk libery for text preprocessing, tensorflow for model building and AWS Ground Truth to make data classified by human beings.
+I used *nltk* library for text preprocessing, *Tensorflow* for model building and *AWS Ground Truth* to make data classified by human beings.
 <img src="https://user-images.githubusercontent.com/29163695/122077900-726b0100-cdfc-11eb-90d4-9e45d3a3f53f.png" height="200">
 <img src="https://user-images.githubusercontent.com/29163695/122078058-94fd1a00-cdfc-11eb-93d4-fe4159a0675a.png" height="200">
 <img src="https://user-images.githubusercontent.com/29163695/122078294-c675e580-cdfc-11eb-95d6-bdd137cf2847.png" height="200">
