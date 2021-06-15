@@ -243,4 +243,4 @@ my_utils.make_confusion_matrix(cm_hum,
                                title='Human Classification',
                                percent=False,
                                cmap='Greens',
-                               other_labels="Mean Absolute Error={:0.3f}".format(mae_reg_conv))
+                               other_labels="Mean Absolute Error={:0.3f}".format(mae_hum))
